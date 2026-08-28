@@ -260,17 +260,26 @@ final class EduAPI {
             sem = firstMatch(shell, pattern: #"semesterCalendar\\(\{[^}]*value:"(\d+)""#) ?? ""
         }
 
-        var comps = URLComponents(string: Self.base + "/eams/courseTableForStd!courseTable.action")!
-        comps.queryItems = [
-            URLQueryItem(name: "setting.kind", value: "std"),
-            URLQueryItem(name: "ids", value: ids),
-            URLQueryItem(name: "semester.id", value: sem),
-            URLQueryItem(name: "startWeek", value: ""),
-        ]
-        let html = try await fetchText(comps.url!)
-
+        // 直接字符串拼 URL（不能用 URLComponents：它会把路径里的 ! 编码成 %21，服务器就认不出了）
+        let urlStr = Self.base + "/eams/courseTableForStd!courseTable.action"
+            + "?setting.kind=std&ids=\(ids)&semester.id=\(sem)&startWeek="
+        guard let url = URL(string: urlStr) else {
+            throw EduAPIError.network("无效地址")
+        }
+        var html = try await fetchText(url)
+        if !html.contains("new TaskActivity(") {
+            // 这个接口偶尔抽风返回空错误页，等一秒重试一次
+            try await Task.sleep(nanoseconds: 1_000_000_000)
+            html = try await fetchText(url)
+        }
         guard html.contains("new TaskActivity(") else {
-            throw EduAPIError.server("没拿到课程数据，请稍后重试")
+            // 拿到的是错误页：尽量带出线索，方便下次一眼看出问题
+            if html.contains(#"name="execution""#) {
+                throw EduAPIError.notLoggedIn  // 被踢回 CAS 登录页
+            }
+            let title = firstMatch(html, pattern: #"<title>([^<]*)</title>"#) ?? ""
+            let info = title.isEmpty ? "（返回页面 \(html.count) 字符）" : "（返回页面「\(title)」）"
+            throw EduAPIError.server("没拿到课程数据，请稍后重试" + info)
         }
 
         var semesterLabel = ""
