@@ -77,10 +77,11 @@ final class EduAPI {
         return req
     }
 
-    private func fetchText(_ url: URL) async throws -> String {
+    private func fetchText(_ url: URL) async throws -> (status: Int, html: String) {
         do {
-            let (data, _) = try await session.data(for: liveRequest(url))
-            return String(data: data, encoding: .utf8) ?? ""
+            let (data, resp) = try await session.data(for: liveRequest(url))
+            let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+            return (status, String(data: data, encoding: .utf8) ?? "")
         } catch {
             throw EduAPIError.network(error.localizedDescription)
         }
@@ -90,7 +91,7 @@ final class EduAPI {
 
     func isLoggedIn() async throws -> Bool {
         guard let url = URL(string: Self.base + "/eams/courseTableForStd.action") else { return false }
-        let html = try await fetchText(url)
+        let (_, html) = try await fetchText(url)
         return html.contains("semesterCalendar")
     }
 
@@ -255,7 +256,7 @@ final class EduAPI {
         guard let url = URL(string: Self.base + "/eams/courseTableForStd.action") else {
             throw EduAPIError.network("无效地址")
         }
-        let html = try await fetchText(url)
+        let (_, html) = try await fetchText(url)
         guard html.contains("semesterCalendar") else { throw EduAPIError.notLoggedIn }
         return html
     }
@@ -272,26 +273,54 @@ final class EduAPI {
             sem = firstMatch(shell, pattern: #"semesterCalendar\\(\{[^}]*value:"(\d+)""#) ?? ""
         }
 
+        // 壳响应会下发 semester.id Cookie，课表接口必须带着它：
+        // 实测带 Cookie 跨连接 8/8 成功，缺 Cookie 必 500（id to load is required）。
+        // 这个 Cookie 名带点号，部分 iOS 版本会漏存，这里手动补一份保险
+        let cookieProps: [HTTPCookiePropertyKey: Any] = [
+            .name: "semester.id",
+            .value: sem.isEmpty ? "322" : sem,
+            .domain: "jwxt.qhmu.edu.cn",
+            .path: "/eams",
+        ]
+        if let c = HTTPCookie(properties: cookieProps) {
+            HTTPCookieStorage.shared.setCookie(c)
+        }
+
         // 直接字符串拼 URL（不能用 URLComponents：它会把路径里的 ! 编码成 %21，服务器就认不出了）
         let urlStr = Self.base + "/eams/courseTableForStd!courseTable.action"
             + "?setting.kind=std&ids=\(ids)&semester.id=\(sem)&startWeek="
         guard let url = URL(string: urlStr) else {
             throw EduAPIError.network("无效地址")
         }
-        var html = try await fetchText(url)
-        if !html.contains("new TaskActivity(") {
-            // 这个接口偶尔抽风返回空错误页，等一秒重试一次
-            try await Task.sleep(nanoseconds: 1_000_000_000)
-            html = try await fetchText(url)
-        }
-        guard html.contains("new TaskActivity(") else {
-            // 拿到的是错误页：尽量带出线索，方便下次一眼看出问题
-            if html.contains(#"name="execution""#) {
+
+        // 服务器每次响应后都强制断开连接，课表接口又挑剔：
+        // 失败就整轮重试（重新刷壳 -> 再抓课表），最多 3 轮
+        var html: String?
+        var lastStatus = 0
+        var lastPage = ""
+        for _ in 1...3 {
+            let (status, page) = try await fetchText(url)
+            lastStatus = status
+            lastPage = page
+            if page.contains("new TaskActivity(") {
+                html = page
+                break
+            }
+            if page.contains(#"name="execution""#) {
                 throw EduAPIError.notLoggedIn  // 被踢回 CAS 登录页
             }
-            let title = firstMatch(html, pattern: #"<title>([^<]*)</title>"#) ?? ""
-            let info = title.isEmpty ? "（返回页面 \(html.count) 字符）" : "（返回页面「\(title)」）"
-            throw EduAPIError.server("没拿到课程数据，请稍后重试" + info)
+            _ = try? await fetchShell()
+            try await Task.sleep(nanoseconds: 500_000_000)
+        }
+        guard let html = html else {
+            // 拿到的是错误页：带出 HTTP 状态和服务器错误原因，方便定位
+            let reason = firstMatch(lastPage, pattern: #"错误原因[:：]\s*([^<]*)"#)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            var msg = "没拿到课程数据（HTTP \(lastStatus)"
+            if !reason.isEmpty { msg += "，\(String(reason.prefix(80)))" }
+            else { msg += "，返回页面 \(lastPage.count) 字符" }
+            msg += "），请稍后重试"
+            throw EduAPIError.server(msg)
         }
 
         var semesterLabel = ""
