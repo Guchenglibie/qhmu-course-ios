@@ -201,8 +201,10 @@ struct ScheduleGridView: View {
 
     private var grid: some View {
         GeometryReader { geo in
-            let dayW = (geo.size.width - timeColW) / 7
             let totalH = CGFloat(10) * unitH
+            // 可视高度尽量撑满屏幕剩余空间，但不超过 10 节课总高（小屏自动变可滚动）
+            let visibleH = min(totalH, max(geo.size.height, CGFloat(4) * unitH))
+            let dayW = (geo.size.width - timeColW) / 7
             ScrollView(.vertical, showsIndicators: true) {
                 ZStack(alignment: .topLeading) {
                     gridBackground(dayW: dayW, totalH: totalH)
@@ -225,8 +227,10 @@ struct ScheduleGridView: View {
                 }
                 .frame(width: geo.size.width, height: totalH)
             }
+            .frame(height: visibleH)
+            .frame(maxHeight: .infinity, alignment: .top)
         }
-        .frame(height: CGFloat(8) * unitH)
+        .frame(maxHeight: .infinity)
     }
 
     private func gridBackground(dayW: CGFloat, totalH: CGFloat) -> some View {
