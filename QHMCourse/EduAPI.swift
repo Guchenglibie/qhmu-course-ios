@@ -159,17 +159,42 @@ final class EduAPI {
     }
 
     private func extractLoginError(_ html: String) -> String {
-        var texts: [String] = []
-        for m in allMatches(html, pattern: #"loginError\s*=\s*(\{.*?\})\s*;"#) {
-            let raw = m.count > 1 ? m[1].trimmingCharacters(in: .whitespacesAndNewlines) : ""
-            if !raw.isEmpty && raw != "{}" { texts.append(String(raw.prefix(200))) }
+        // 1) 页面上的 el-alert 提示（服务器渲染的可读文案）
+        for m in allMatches(html, pattern: #"<el-alert[^>]*title="([^"]+)""#) where m.count > 1 {
+            let text = m[1].trimmingCharacters(in: .whitespacesAndNewlines)
+            if !text.isEmpty { return String(text.prefix(100)) }
         }
-        for m in allMatches(html, pattern: #"<div[^>]*id="msg"[^>]*>(.*?)</div>"#) {
-            let text = stripTags(m.count > 1 ? m[1] : "")
-            if !text.isEmpty { texts.append(text) }
+        // 2) JS 里的 errors 数组，如 ["账号或密码错误。"]
+        for m in allMatches(html, pattern: #"var\s+errors\s*=\s*\[(.*?)\];"#) where m.count > 1 {
+            var texts: [String] = []
+            for s in allMatches(m[1], pattern: #""([^"]*)""#) where s.count > 1 && !s[1].isEmpty {
+                texts.append(decodeUnicodeEscapes(s[1]))
+            }
+            if !texts.isEmpty {
+                return String(texts.joined(separator: " ").prefix(100))
+            }
         }
-        let msg = texts.joined(separator: " | ")
-        return String((msg.isEmpty ? "登录失败，请重试" : msg).prefix(200))
+        return "登录失败，请检查账号、密码和验证码"
+    }
+
+    /// 把 "账号" 这类 JS 转义还原成中文
+    private func decodeUnicodeEscapes(_ s: String) -> String {
+        var out = ""
+        var i = s.startIndex
+        while i < s.endIndex {
+            if s[i] == "\\", s.distance(from: i, to: s.endIndex) >= 6,
+               s[s.index(after: i)] == "u",
+               let end = s.index(i, offsetBy: 6, limitedBy: s.endIndex),
+               let code = UInt32(s[s.index(i, offsetBy: 2)..<end], radix: 16),
+               let scalar = UnicodeScalar(code) {
+                out.append(Character(scalar))
+                i = end
+            } else {
+                out.append(s[i])
+                i = s.index(after: i)
+            }
+        }
+        return out
     }
 
     // MARK: - 学期列表
