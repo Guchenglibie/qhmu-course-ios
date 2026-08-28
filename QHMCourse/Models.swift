@@ -67,3 +67,35 @@ enum SemesterCalendar {
         return Calendar.current.date(byAdding: .day, value: offset, to: start)
     }
 }
+
+/// 每天的节次时间表（学校作息，第 1-10 节）
+enum ClassPeriod {
+    /// (开始, 结束)，如 ("08:30", "09:15")
+    static let times: [(start: String, end: String)] = [
+        ("08:30", "09:15"),
+        ("09:25", "10:10"),
+        ("10:30", "11:15"),
+        ("11:25", "12:10"),
+        ("14:10", "14:55"),
+        ("15:05", "15:50"),
+        ("16:10", "16:55"),
+        ("17:05", "17:50"),
+        ("19:00", "19:45"),
+        ("19:55", "20:40"),
+    ]
+
+    /// 现在该上第几节：取“还没下课”的第一节（课间指向下一节）；今天课上完返回 nil
+    static func current(now: Date = Date()) -> Int? {
+        let comp = Calendar.current.dateComponents([.hour, .minute], from: now)
+        let nowMin = (comp.hour ?? 0) * 60 + (comp.minute ?? 0)
+        for (i, t) in times.enumerated() where nowMin <= minute(of: t.end) {
+            return i + 1
+        }
+        return nil
+    }
+
+    private static func minute(of hm: String) -> Int {
+        let p = hm.split(separator: ":")
+        return (Int(p.first ?? "") ?? 0) * 60 + (Int(p.last ?? "") ?? 0)
+    }
+}

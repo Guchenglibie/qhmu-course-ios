@@ -37,7 +37,8 @@ struct CourseDetailView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top) {
+        let c = Theme.courseColors(for: course.seqNo)
+        return HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(course.name)
                     .font(.title3.bold())
@@ -48,18 +49,20 @@ struct CourseDetailView: View {
             Spacer()
             Image(systemName: "book.closed.fill")
                 .font(.title2)
-                .foregroundColor(.blue)
+                .foregroundColor(c.foreground)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.blue.opacity(0.08))
-        .cornerRadius(12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(c.background)
+        )
     }
 
     private func infoRow(icon: String, title: String, text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Image(systemName: icon)
-                .foregroundColor(.secondary)
+                .foregroundColor(Theme.accent)
                 .frame(width: 20)
             Text(title)
                 .font(.subheadline)
@@ -93,7 +96,10 @@ private struct ActivityRow: View {
             let range = units.count == 1
                 ? "第\(units[0])节"
                 : "第\(units.first!)–\(units.last!)节"
-            return "\(dayNames[slot.day])\(range)"
+            let t = ClassPeriod.times
+            let start = t[units.first! - 1].start
+            let end = t[units.last! - 1].end
+            return "\(dayNames[slot.day])\(range) \(start)-\(end)"
         }
         return parts.joined(separator: "、")
     }

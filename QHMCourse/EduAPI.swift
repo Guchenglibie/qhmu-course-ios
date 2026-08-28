@@ -374,7 +374,8 @@ final class EduAPI {
             let roomWeek = allMatches(call, pattern: #""(\d+)"\s*,\s*"([^"]+)"\s*,\s*"([01]{10,})""#).first
             let room = roomWeek.flatMap { $0.count > 2 ? $0[2] : nil } ?? ""
             let weeksStr = roomWeek.flatMap { $0.count > 3 ? $0[3] : nil } ?? ""
-            let weeks: [Int] = weeksStr.enumerated().compactMap { i, ch in ch == "1" ? i + 1 : nil }
+            // 位图第 0 位是占位符，第 1 位 = 第 1 周（实测 startWeek=1 就包含第 1 周课程）
+            let weeks: [Int] = weeksStr.enumerated().compactMap { i, ch in ch == "1" ? i : nil }
 
             // 格子定位: index = 天*unitCount + 节次
             var byDay: [Int: [Int]] = [:]
