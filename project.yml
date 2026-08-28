@@ -1,0 +1,26 @@
+name: QHMCourse
+options:
+  bundleIdPrefix: com.qhmu
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+targets:
+  QHMCourse:
+    type: application
+    platform: iOS
+    sources: [QHMCourse]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.qhmu.course
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""
+        TARGETED_DEVICE_FAMILY: "1"
+    info:
+      path: QHMCourse/Info.plist
+      properties:
+        CFBundleDisplayName: 民大课表
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
