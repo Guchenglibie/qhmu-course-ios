@@ -266,11 +266,13 @@ final class EduAPI {
 
         let shell = try await fetchShell()
         // 学号 ids：页面 searchTable() 里注入的必传参数，缺了服务器查不到课表
-        var ids = firstMatch(shell, pattern: #"addInput\\(form,\s*"ids",\s*"(\d+)"\\)"#) ?? ""
+        // 注意：正则必须写在 ##"..."## 里——在 #"..."# 里 \\( 会变成两个反斜杠，
+        // 正则含义就从"字面量 ("变成"反斜杠+("，永远匹配不上
+        var ids = firstMatch(shell, pattern: ##"addInput\(form,\s*"ids",\s*"(\d+)"\)"##) ?? ""
         if ids.isEmpty { ids = firstMatch(shell, pattern: #"ids=(\d+)"#) ?? "" }
         var sem = semester
         if sem.isEmpty {
-            sem = firstMatch(shell, pattern: #"semesterCalendar\\(\{[^}]*value:"(\d+)""#) ?? ""
+            sem = firstMatch(shell, pattern: ##"semesterCalendar\(\{[^}]*value:"(\d+)"##) ?? ""
         }
 
         // 壳响应会下发 semester.id Cookie，课表接口必须带着它：
@@ -367,8 +369,8 @@ final class EduAPI {
                 teachers.append(t[1])
             }
 
-            guard let call = firstMatch(block, pattern: #"new\s+TaskActivity\\((.*?)\\)\s*;"#) else { continue }
-            let seqNo = firstMatch(call, pattern: #""(\d+)\\(([^)]+)\\)""#, group: 2) ?? ""
+            guard let call = firstMatch(block, pattern: ##"new\s+TaskActivity\((.*?)\)\s*;"##) else { continue }
+            let seqNo = firstMatch(call, pattern: ##""(\d+)\(([^)]+)\)""##, group: 2) ?? ""
             let roomWeek = allMatches(call, pattern: #""(\d+)"\s*,\s*"([^"]+)"\s*,\s*"([01]{10,})""#).first
             let room = roomWeek.flatMap { $0.count > 2 ? $0[2] : nil } ?? ""
             let weeksStr = roomWeek.flatMap { $0.count > 3 ? $0[3] : nil } ?? ""
