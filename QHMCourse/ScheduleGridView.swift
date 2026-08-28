@@ -126,9 +126,10 @@ struct ScheduleGridView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 4)
                 .background(
-                    headerDay(d)
-                        ? Color.blue.opacity(0.12).cornerRadius(8)
-                        : Color.clear
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(headerDay(d)
+                            ? Color(red: 0.13, green: 0.59, blue: 0.95, opacity: 0.12)
+                            : Color.clear)
                 )
             }
         }

@@ -144,8 +144,8 @@ final class EduAPI {
             .replacingOccurrences(of: " ", with: "")
         guard let keyData = Data(base64Encoded: b64),
               let secKey = SecKeyCreateWithData(keyData as CFData, [
-                  kSecKeyAttrType: kSecKeyAttrTypeRSA,
-                  kSecKeyAttrClass: kSecKeyAttrClassPublic,
+                  kSecAttrKeyType: kSecAttrKeyTypeRSA,
+                  kSecAttrKeyClass: kSecAttrKeyClassPublic,
               ] as CFDictionary, nil) else {
             throw EduAPIError.server("RSA 公钥解析失败")
         }
