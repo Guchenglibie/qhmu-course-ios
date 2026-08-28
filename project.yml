@@ -1,6 +1,7 @@
 name: QHMCourse
 options:
   bundleIdPrefix: com.qhmu
+  xcodeVersion: "15.0"
   deploymentTarget:
     iOS: "15.0"
   createIntermediateGroups: true
