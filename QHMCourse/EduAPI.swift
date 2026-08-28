@@ -62,6 +62,13 @@ final class EduAPI {
          .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// 表单值编码。不能用 URLComponents：它不转义 + 号，服务器会把密文里的 + 当空格，导致解密失败
+    private func formEncode(_ s: String) -> String {
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        return s.addingPercentEncoding(withAllowedCharacters: allowed) ?? s
+    }
+
     private func fetchText(_ url: URL) async throws -> String {
         do {
             let (data, _) = try await session.data(from: url)
@@ -116,9 +123,10 @@ final class EduAPI {
         var req = URLRequest(url: URL(string: loginURL)!)
         req.httpMethod = "POST"
         req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        var comps = URLComponents()
-        comps.queryItems = form.map { URLQueryItem(name: $0.0, value: $0.1) }
-        req.httpBody = comps.percentEncodedQuery?.data(using: .utf8)
+        req.httpBody = form
+            .map { formEncode($0.0) + "=" + formEncode($0.1) }
+            .joined(separator: "&")
+            .data(using: .utf8)
 
         // 跟随重定向：成功会一路跳到教务首页；失败停在登录页（仍含 execution）
         let (data, _) = try await session.data(for: req)
@@ -206,14 +214,16 @@ final class EduAPI {
         var req = URLRequest(url: URL(string: Self.base + "/eams/dataQuery.action")!)
         req.httpMethod = "POST"
         req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        var comps = URLComponents()
-        comps.queryItems = [
-            URLQueryItem(name: "tagId", value: tagId),
-            URLQueryItem(name: "dataType", value: "semesterCalendar"),
-            URLQueryItem(name: "value", value: ""),
-            URLQueryItem(name: "empty", value: "false"),
+        let fields: [(String, String)] = [
+            ("tagId", tagId),
+            ("dataType", "semesterCalendar"),
+            ("value", ""),
+            ("empty", "false"),
         ]
-        req.httpBody = comps.percentEncodedQuery?.data(using: .utf8)
+        req.httpBody = fields
+            .map { formEncode($0.0) + "=" + formEncode($0.1) }
+            .joined(separator: "&")
+            .data(using: .utf8)
         let (data, _) = try await session.data(for: req)
         let text = String(data: data, encoding: .utf8) ?? ""
         // 响应是 JS 对象字面量: semesters:{y0:[{id:322,schoolYear:"2026-2027",name:"1"},...]}
