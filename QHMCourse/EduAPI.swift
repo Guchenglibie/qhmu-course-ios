@@ -69,9 +69,17 @@ final class EduAPI {
         return s.addingPercentEncoding(withAllowedCharacters: allowed) ?? s
     }
 
+    /// 实时数据的 GET：一律忽略本地缓存。教务系统全是实时状态，
+    /// 缓存的旧验证码图/旧页面会导致“刷不出来”“没数据”这类怪问题
+    private func liveRequest(_ url: URL) -> URLRequest {
+        var req = URLRequest(url: url)
+        req.cachePolicy = .reloadIgnoringLocalCacheData
+        return req
+    }
+
     private func fetchText(_ url: URL) async throws -> String {
         do {
-            let (data, _) = try await session.data(from: url)
+            let (data, _) = try await session.data(for: liveRequest(url))
             return String(data: data, encoding: .utf8) ?? ""
         } catch {
             throw EduAPIError.network(error.localizedDescription)
@@ -91,7 +99,7 @@ final class EduAPI {
         guard let url = URL(string: Self.base + "/eams/homeExt.action") else {
             throw EduAPIError.network("无效地址")
         }
-        let (data, resp) = try await session.data(from: url)
+        let (data, resp) = try await session.data(for: liveRequest(url))
         let html = String(data: data, encoding: .utf8) ?? ""
         guard let exec = firstMatch(html, pattern: #"name="execution" value="([^"]+)""#) else {
             return nil  // 没跳登录页 => 会话仍有效
@@ -101,8 +109,12 @@ final class EduAPI {
         guard let capURL = URL(string: Self.cas + "/cas/captcha.jpg") else {
             throw EduAPIError.network("无效地址")
         }
-        let (imgData, _) = try await session.data(from: capURL)
-        return UIImage(data: imgData)
+        let (imgData, _) = try await session.data(for: liveRequest(capURL))
+        guard let img = UIImage(data: imgData) else {
+            // 服务器没给图（可能返回了错误页），报出来而不是假装没登录
+            throw EduAPIError.server("验证码图片加载失败，点图片重试")
+        }
+        return img
     }
 
     /// 执行 CAS 登录。成功返回；失败抛错（错误信息取自页面提示）
@@ -142,7 +154,7 @@ final class EduAPI {
         guard let url = URL(string: Self.cas + "/cas/jwt/publicKey") else {
             throw EduAPIError.network("无效地址")
         }
-        let (data, _) = try await session.data(from: url)
+        let (data, _) = try await session.data(for: liveRequest(url))
         let pem = String(data: data, encoding: .utf8) ?? ""
         let b64 = pem
             .replacingOccurrences(of: "-----BEGIN PUBLIC KEY-----", with: "")

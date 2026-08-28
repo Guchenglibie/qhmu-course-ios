@@ -22,6 +22,13 @@ struct LoginView: View {
                             .foregroundColor(.red)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    if let err = store.errorMessage {
+                        // 验证码加载失败等错误也会显示出来，不再无限转圈
+                        Text(err)
+                            .font(.footnote)
+                            .foregroundColor(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                     loginButton
                     tip
                 }

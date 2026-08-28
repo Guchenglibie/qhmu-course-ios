@@ -40,6 +40,7 @@ final class ScheduleStore: ObservableObject {
     // MARK: - 登录
 
     func refreshCaptcha() async {
+        errorMessage = nil
         do {
             captchaImage = try await EduAPI.shared.prepareCaptcha()
             if captchaImage == nil {
